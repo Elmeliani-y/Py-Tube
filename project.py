@@ -1,49 +1,84 @@
 import os
 from tkinter import *
-from tkinter import filedialog
+from tkinter import filedialog, messagebox
 from tkinter.font import Font
-from pytube import YouTube
+import yt_dlp
+import threading
 
-window=Tk()
-key=Label(window,text="welcome to our first edition youtube saver :" ,fg="red",bg="black" , font= "myfont" )
-key.pack()
-window.config(background="black")
+# Set up the main window
+window = Tk()
+window.config(background="#333")
 window.geometry("500x400")
-myfont = Font( family="Arial", size=24, weight="bold")
-key2=Label(window,text="enter the link of the music : ",fg="red",bg="black")
-key2.pack()
-url_entry=Entry(window,width=40)
-url_entry.pack()
+window.title("YouTube Saver to MP3")
 
-mp3_label = Label(window, text="Choose MP3 filename:",fg="black",bg="red")
-mp3_label.pack()
-mp3_entry=Entry(window)
-mp3_entry.pack()
-def choose_mp3_filename():
-        file_path = filedialog.askdirectory()
-        mp3_entry.delete(0, END)
-        mp3_entry.insert(0, file_path)
+# Custom font styling
+header_font = Font(family="Arial", size=16, weight="bold")
+label_font = Font(family="Arial", size=12)
 
+# Header
+header_label = Label(window, text="YouTube MP3 Downloader", fg="white", bg="#333", font=header_font)
+header_label.pack(pady=20)
 
+# URL entry label and field
+url_label = Label(window, text="Enter YouTube Video URL:", fg="white", bg="#333", font=label_font)
+url_label.pack(pady=5)
+url_entry = Entry(window, width=50, font=("Arial", 10))
+url_entry.pack(pady=5)
 
-mp3_button = Button(window, text="Choose file", command=choose_mp3_filename ,fg="black",bg="red")
-mp3_button.pack()
+# Directory selection label and button
+dir_label = Label(window, text="Select Save Directory:", fg="white", bg="#333", font=label_font)
+dir_label.pack(pady=5)
+dir_entry = Entry(window, width=50, font=("Arial", 10))
+dir_entry.pack(pady=5)
 
-def download_mp3():
+def choose_directory():
+    directory = filedialog.askdirectory()
+    dir_entry.delete(0, END)
+    dir_entry.insert(0, directory)
+
+dir_button = Button(window, text="Choose Directory", command=choose_directory, bg="#FF5733", fg="white")
+dir_button.pack(pady=5)
+
+# Loading label (initially hidden)
+loading_label = Label(window, text="Downloading, please wait...", fg="yellow", bg="#333", font=label_font)
+
+# Download function with threading
+def start_download():
     video_url = url_entry.get()
-    mp3_filename = mp3_entry.get()
+    save_directory = dir_entry.get()
 
-    yt = YouTube(video_url)
+    if not video_url or not save_directory:
+        messagebox.showerror("Input Error", "Please provide both a video URL and a save directory.")
+        return
 
-    stream = yt.streams.filter(only_audio=True).first()
-    stream.download(output_path=mp3_filename)
+    loading_label.pack(pady=10)  # Show loading label
+    download_thread = threading.Thread(target=download_audio, args=(video_url, save_directory))
+    download_thread.start()
 
-    video_filename = stream.default_filename
+def download_audio(video_url, save_directory):
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'outtmpl': os.path.join(save_directory, '%(title)s.%(ext)s'),
+        'postprocessors': [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '192',
+        }],
+        'quiet': True,  # Suppress verbose yt-dlp output
+    }
 
-    os.rename(video_filename, mp3_filename)
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([video_url])
+        messagebox.showinfo("Success", "Download completed successfully!")
+    except Exception as e:
+        messagebox.showerror("Download Error", f"An error occurred: {e}")
+    finally:
+        loading_label.pack_forget()  # Hide loading label
 
-download_button = Button(window, text="Download as MP3", command=download_mp3 ,fg="black",bg="red")
-download_button.pack()
-window.title("YouTube saver to mp3")
+# Download button
+download_button = Button(window, text="Download as MP3", command=start_download, bg="#FF5733", fg="white")
+download_button.pack(pady=20)
 
+# Start the Tkinter event loop
 window.mainloop()
